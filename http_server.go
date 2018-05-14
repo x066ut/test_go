@@ -121,7 +121,6 @@ func parseURL(url string) answer {
 		log.Println(err.Error())
 		return answer
 	}
-	log.Printf("doc=%v\n", doc)
 	doc.Find("span").Each(func(i int, s *goquery.Selection) {
 		if s.HasClass("offer-price") {
 			answer.Meta.Price, _ = strconv.ParseFloat(priceRegexp.FindString(s.Text()), 64)
