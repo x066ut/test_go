@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/ccding/go-config-reader/config"
@@ -43,24 +44,27 @@ func getConfig(section string, key string) string {
 
 func handler(rw http.ResponseWriter, req *http.Request) {
 	log.Println("Start handler")
-	req.ParseForm()
 	var requestURL []string
-
 	result := make(chan answer)
 	worklist := make(chan []string)
 	unseen := make(chan string)
 
-	countURL := 0
-
-	for key := range req.Form {
-		err := json.Unmarshal([]byte(key), &requestURL)
-		_check(err)
-		countURL += len(requestURL)
-		go func() {
-			worklist <- requestURL[:]
-			close(worklist)
-		}()
+	type tstruct struct {
+		Test []string
 	}
+
+	countURL := 0
+	decoder := json.NewDecoder(req.Body)
+	err := decoder.Decode(&requestURL)
+
+	if err != nil {
+		panic(err)
+	}
+	countURL += len(requestURL)
+	go func() {
+		worklist <- requestURL[:]
+		close(worklist)
+	}()
 
 	for i := 0; i < cntWorkers; i++ {
 		go func(i int) {
@@ -117,13 +121,16 @@ func parseURL(url string) answer {
 		log.Println(err.Error())
 		return answer
 	}
-
+	log.Printf("doc=%v\n", doc)
 	doc.Find("span").Each(func(i int, s *goquery.Selection) {
 		if s.HasClass("offer-price") {
 			answer.Meta.Price, _ = strconv.ParseFloat(priceRegexp.FindString(s.Text()), 64)
 		}
 	})
-	answer.Meta.Title = doc.Find("span#productTitle").Text()
+	log.Printf("answer=%v\n", answer)
+
+	rawTitle := doc.Find("span#productTitle").Text()
+	answer.Meta.Title = strings.TrimSpace(rawTitle)
 	img, _ := doc.Find("img#imgBlkFront").Attr("data-a-dynamic-image")
 	answer.Meta.Img = imgRegexp.FindString(img)
 	return answer
